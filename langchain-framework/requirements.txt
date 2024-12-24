@@ -12,3 +12,4 @@ chromadb
 wikipedia
 arxiv
 python-dotenv
+faiss-cpu
