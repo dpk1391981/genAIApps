@@ -9,4 +9,6 @@ langchain_chroma
 langchain_core
 pypdf
 chromadb
-pysqlite3
+wikipedia
+arxiv
+python-dotenv
