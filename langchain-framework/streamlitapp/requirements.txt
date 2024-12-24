@@ -8,3 +8,4 @@ langchain_huggingface
 langchain_chroma
 langchain_core
 pypdf
+chromadb
