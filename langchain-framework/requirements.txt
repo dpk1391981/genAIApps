@@ -13,3 +13,4 @@ wikipedia
 arxiv
 python-dotenv
 faiss-cpu
+duckduckgo-search
