@@ -11,20 +11,35 @@ from few_shots import few_shots
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.vectorstores import FAISS
 from langchain.chains.sql_database.prompt import PROMPT_SUFFIX, _mysql_prompt
+from langchain.chains import create_sql_query_chain
 import chromadb
+from langchain import hub
+from langchain_openai import ChatOpenAI
 
+import os
+from dotenv import load_dotenv
+load_dotenv() 
+
+# os.environ["OPENAI_API_KEY"]=os.getenv("OPENAI_API_KEY")
+os.environ["LANGCHAIN_API_KEY"] = os.getenv("LANGCHAIN_API_KEY")
+os.environ["LANGCHAIN_PROJECT"] = "PRMAIAssistentLogs"
+os.environ["LANGCHAIN_TRACING_V2"] = "true"
+
+
+prompt_template = hub.pull("langchain-ai/sql-agent-system-prompt")
+system_message = prompt_template.format(dialect="SQLite", top_k=5)
 chromadb.api.client.SharedSystemClient.clear_system_cache()
 
 # Streamlit setup
-st.title("Clove PRM AI Assistent")
+st.title("PRM AI Assistent")
 
 # Sidebar inputs for MySQL connection and Groq API Key
 mysql_host = st.sidebar.text_input("MySQL Host", "localhost")
-mysql_user = st.sidebar.text_input("MySQL User", "root")
-mysql_password = st.sidebar.text_input("MySQL Password", type="password")
-mysql_db = st.sidebar.text_input("MySQL DB", "")
-api_key = st.sidebar.text_input("Enter Groq API Key", type="password")
-
+mysql_user = st.sidebar.text_input("MySQL User", "genai")
+mysql_password = st.sidebar.text_input("MySQL Password", value="genai", type="password")
+mysql_db = st.sidebar.text_input("MySQL DB", value="offer_prm_uat" "")
+# api_key = st.sidebar.text_input("Enter Groq API Key", type="password")
+api_key = "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"
 # Query limit setting
 query_limit = st.sidebar.number_input(
     "Set maximum number of rows to fetch per query:",
@@ -42,7 +57,8 @@ if not api_key:
     
 llm=None
 if api_key:
-    llm = ChatGroq(groq_api_key=api_key, model="gemma2-9b-it", streaming=True)
+    llm = ChatGroq(groq_api_key=api_key, model="llama3-8b-8192", streaming=True)
+    # llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
 
 @st.cache_resource(ttl="2h")
 def config_mysql_db(mysql_host, mysql_user, mysql_password, mysql_db):
@@ -50,7 +66,12 @@ def config_mysql_db(mysql_host, mysql_user, mysql_password, mysql_db):
     if not (mysql_db and mysql_host and mysql_user and mysql_password):
         st.error("Please provide complete MySQL DB configuration.")
         st.stop()
-    return SQLDatabase(create_engine(f"mysql+mysqlconnector://{mysql_user}:{mysql_password}@{mysql_host}/{mysql_db}"))
+    db_engine = create_engine(f"mysql+mysqlconnector://{mysql_user}:{mysql_password}@{mysql_host}/{mysql_db}")
+    db = SQLDatabase(db_engine)
+    
+    # Restrict tables to a specific subset
+    # db._inspector.get_table_names = lambda: ["facility" ]
+    return db
 
 # Configure the database
 db = config_mysql_db(mysql_host, mysql_user, mysql_password, mysql_db)
@@ -60,11 +81,20 @@ toolkit = SQLDatabaseToolkit(llm=llm, db=db)
 
 embeddings = HuggingFaceEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2')
 to_vectorize = [" ".join(example.values()) for example in few_shots]
-vectorstore = FAISS.from_texts(to_vectorize, embeddings, metadatas=few_shots)
-example_selector = SemanticSimilarityExampleSelector(
-    vectorstore=vectorstore,
-    k=2,
+vectorstore = FAISS.from_texts(to_vectorize, embedding=embeddings, metadatas=few_shots)
+# example_selector = SemanticSimilarityExampleSelector(
+#     vectorstore=vectorstore,
+#     k=2,
+# )
+
+example_selector = SemanticSimilarityExampleSelector.from_examples(
+    examples=few_shots,
+    embeddings=embeddings,
+    vectorstore_cls=FAISS,
+    k=2
 )
+
+# print(example_selector);
 
 
 mysql_prompt = """You are a MySQL expert. Given an input question, first create a syntactically correct MySQL query to run, then look at the results of the query and return the answer to the input question.
@@ -80,6 +110,14 @@ mysql_prompt = """You are a MySQL expert. Given an input question, first create 
     SQLResult: Result of the SQLQuery
     Answer: Final answer here
     
+    If the question is about **clinics**, return **ALL** these tables:
+    - "facility"
+    - "users"
+    
+    ### Category Mappings:
+    1. **Category: receipts**
+    - Table: receipt
+  
     No pre-amble.
     """
 
@@ -95,6 +133,7 @@ few_shot_prompt = FewShotPromptTemplate(
         suffix=PROMPT_SUFFIX,
         input_variables=["input", "table_info", "top_k"], #These variables are used in the prefix and suffix
     )
+
 
 # Initialize the agent with few-shot prompting
 agent = initialize_agent(
@@ -121,12 +160,13 @@ if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
     st.chat_message("user").write(user_input)
 
-    with st.chat_message("assistant"):
+    with st.chat_message("assistant"): #st.spinner("Generating response")
         try:
             # Add LIMIT clause to user input
             limited_query = f"{user_input} LIMIT {query_limit}"
             streamlit_callback = StreamlitCallbackHandler(st.container())
             response = agent.run(limited_query, callbacks=[streamlit_callback])
+            # response = agent.run(limited_query)
             response = response[:500]
 
 
