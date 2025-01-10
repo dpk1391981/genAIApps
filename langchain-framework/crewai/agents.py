@@ -5,10 +5,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-import os
-os.environ["OPENAI_API_KEY"] = "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"
-os.environ["OPENAI_MODEL_NAME"]="gpt-4-0125-preview"
-os.environ['GROQ_API_KEY'] = ""
+# import os
+# os.environ["OPENAI_API_KEY"] = "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"
+# os.environ["OPENAI_MODEL_NAME"]="gpt-4-0125-preview"
+# os.environ['GROQ_API_KEY'] = ""
 
 
 ## Create a senior blog content researcher
