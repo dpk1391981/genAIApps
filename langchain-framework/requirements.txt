@@ -41,3 +41,4 @@ pinecone-notebooks
 neo4j
 langchain-huggingface
 langchain-groq
+langsmith

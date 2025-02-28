@@ -44,7 +44,7 @@ api_key = "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"
 query_limit = st.sidebar.number_input(
     "Set maximum number of rows to fetch per query:",
     min_value=1,
-    max_value=1000,
+    max_value=100000,
     value=100,
     step=1,
 )
@@ -57,8 +57,8 @@ if not api_key:
     
 llm=None
 if api_key:
-    llm = ChatGroq(groq_api_key=api_key, model="llama3-8b-8192", streaming=True)
-    # llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
+    # llm = ChatGroq(groq_api_key=api_key, model="llama3-8b-8192", streaming=True)
+    llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
 
 @st.cache_resource(ttl="2h")
 def config_mysql_db(mysql_host, mysql_user, mysql_password, mysql_db):
